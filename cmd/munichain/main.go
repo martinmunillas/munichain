@@ -18,10 +18,15 @@ func main() {
 
 	cmd.AddCommand(versionCmd)
 	cmd.AddCommand(balancesCmd())
+	cmd.AddCommand(txCmd())
 
 	err := cmd.Execute()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func incorrectUsageErr() error {
+	return fmt.Errorf("incorrect usage")
 }

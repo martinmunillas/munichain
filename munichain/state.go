@@ -9,25 +9,26 @@ type Meta struct {
 }
 type State struct {
 	Balances     Balances
-	MemPool      []Transaction
 	Transactions []Transaction
-	Genesis      Balances
 	Meta         Meta
 }
 
 func (state *State) sync() {
-	if state.Meta.LastSync == 0 {
-		state.Balances = state.Genesis
-	}
 	for _, tx := range state.Transactions[state.Meta.LastSync:] {
 		state.apply(&tx)
 	}
 	state.Meta.LastSync = uint64(len(state.Transactions) - 1)
 }
 
+func (state *State) Add(tx *Transaction) {
+	state.Transactions = append(state.Transactions, *tx)
+	state.sync()
+}
+
 func (state *State) apply(tx *Transaction) {
 
 	if state.isValidTransaction(tx) {
+		tx.Rejected = true
 		return
 	}
 
@@ -70,10 +71,11 @@ func NewStateFromDisk() (*State, error) {
 		return nil, err
 	}
 	state := &State{
-		Balances:     make(map[Address]uint),
-		MemPool:      make([]Transaction, 0),
-		Genesis:      genesis,
+		Balances:     genesis,
 		Transactions: transactions,
+		Meta: Meta{
+			LastSync: 0,
+		},
 	}
 
 	state.sync()
