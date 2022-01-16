@@ -30,3 +30,15 @@ func main() {
 func incorrectUsageErr() error {
 	return fmt.Errorf("incorrect usage")
 }
+
+const flagDataDir = "dataDir"
+
+func addDefaultRequiredFlags(cmd *cobra.Command) {
+	cmd.Flags().String(
+		flagDataDir,
+		"",
+		"Data directory",
+	)
+
+	cmd.MarkFlagRequired(flagDataDir)
+}

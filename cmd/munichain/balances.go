@@ -21,6 +21,7 @@ func balancesCmd() *cobra.Command {
 	}
 
 	balancesCmd.AddCommand(balancesListCmd)
+	addDefaultRequiredFlags(balancesListCmd)
 
 	return balancesCmd
 }
@@ -29,7 +30,12 @@ var balancesListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Lists all balances.",
 	Run: func(cmd *cobra.Command, args []string) {
-		state, err := munichain.NewStateFromDisk()
+		dataDir, err := cmd.Flags().GetString(flagDataDir)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		state, err := munichain.NewStateFromDisk(dataDir)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)

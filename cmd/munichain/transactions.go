@@ -36,18 +36,19 @@ func txAddCmd() *cobra.Command {
 			from, _ := cmd.Flags().GetString(flagFrom)
 			to, _ := cmd.Flags().GetString(flagTo)
 			value, _ := cmd.Flags().GetUint(flagValue)
+			dataDir, _ := cmd.Flags().GetString(flagDataDir)
 
 			tx := munichain.NewTransaction(munichain.Address(from), munichain.Address(to), value)
 
-			state, err := munichain.NewStateFromDisk()
+			state, err := munichain.NewStateFromDisk(dataDir)
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
 			}
 
-			state.Add(&tx)
+			state.AddTransactions(&tx)
 
-			err = state.Persist()
+			_, err = state.Persist()
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
@@ -56,6 +57,7 @@ func txAddCmd() *cobra.Command {
 			fmt.Println("TX successfully added to the ledger.")
 		},
 	}
+	addDefaultRequiredFlags(cmd)
 	cmd.Flags().String(flagFrom, "", "From what account to send tokens")
 	cmd.MarkFlagRequired(flagFrom)
 
