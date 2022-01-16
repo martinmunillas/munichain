@@ -1,28 +1,20 @@
 package munichain
 
+import "time"
+
 type Address string
 
 type Balances = map[Address]uint
 
-type Meta struct {
-	LastSync uint64
-}
 type State struct {
-	Balances     Balances
-	Transactions []Transaction
-	Meta         Meta
+	Balances    Balances
+	memPool     []Transaction
+	currentHash Hash
 }
 
-func (state *State) sync() {
-	for _, tx := range state.Transactions[state.Meta.LastSync:] {
-		state.apply(&tx)
+func (state *State) AddTransactions(txs ...*Transaction) {
+	for tx := range txs {
 	}
-	state.Meta.LastSync = uint64(len(state.Transactions) - 1)
-}
-
-func (state *State) Add(tx *Transaction) {
-	state.Transactions = append(state.Transactions, *tx)
-	state.sync()
 }
 
 func (state *State) apply(tx *Transaction) {
@@ -48,11 +40,20 @@ func (state *State) isValidTransaction(tx *Transaction) bool {
 	return true
 }
 
-func (state *State) Persist() error {
-	if err := writeJson(state.Balances, "db", "balances.json"); err != nil {
-		return err
+func (state *State) Persist() (Hash, error) {
+	block := &Block{
+		Header: BlockHeader{
+			Previous: state.currentHash,
+			Time:     uint64(time.Now().Unix()),
+		},
+		Transactions: state.memPool,
 	}
-	return nil
+
+	blockHash, err := block.Hash()
+	if err != nil {
+		return Hash{}, err
+	}
+
 }
 
 func NewStateFromDisk() (*State, error) {
@@ -71,14 +72,8 @@ func NewStateFromDisk() (*State, error) {
 		return nil, err
 	}
 	state := &State{
-		Balances:     genesis,
-		Transactions: transactions,
-		Meta: Meta{
-			LastSync: 0,
-		},
+		Balances: genesis,
 	}
-
-	state.sync()
 
 	return state, nil
 }
