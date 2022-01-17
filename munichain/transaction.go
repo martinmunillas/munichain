@@ -13,3 +13,6 @@ func NewTransaction(from Address, to Address, value uint) Transaction {
 		Amount: value,
 	}
 }
+func (tx *Transaction) isValid() bool {
+	return tx.Amount > 0
+}

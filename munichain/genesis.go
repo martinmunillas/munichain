@@ -1,17 +1,15 @@
 package munichain
 
-import "time"
-
 var genesisBlock = Block{
 	Header: BlockHeader{
-		Time:     uint64(time.Now().Unix()),
+		Time:     1642358385,
 		Previous: Hash{},
 	},
 	Transactions: []Transaction{
-		NewTransaction("genesis", "martinmunilla", 100_000_000),
+		NewTransaction("munichain", "martinmunilla", 100_000_000),
 	},
 }
 
-func (genesis *Block) isGenesisTx(tx Transaction) bool {
-	return tx.From == "genesis"
+func (genesis *Block) isPrintingTx(tx Transaction) bool {
+	return tx.From == "munichain"
 }

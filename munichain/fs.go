@@ -1,6 +1,7 @@
 package munichain
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path"
@@ -15,17 +16,34 @@ func getBlocksFilePath(dataDir string) string {
 }
 
 func initDataDirIfNotExists(dataDir string) error {
+	blocks := getBlocksFilePath(dataDir)
+	_, err := os.Stat(blocks)
+	if err == nil {
+		return nil
+	}
+
+	if !os.IsNotExist(err) {
+		return err
+	}
+
 	dbDir := getDbDirPath(dataDir)
 	if err := os.MkdirAll(dbDir, os.ModePerm); err != nil {
 		return err
 	}
-	blocks := getBlocksFilePath(dataDir)
-	if err := writeEmptyBlocksFileToDisk(blocks); err != nil {
+	if err := writeGenesisBlockToBlocksFile(blocks); err != nil {
 		return err
 	}
 	return nil
 }
 
-func writeEmptyBlocksFileToDisk(path string) error {
-	return ioutil.WriteFile(path, []byte(""), os.ModePerm)
+func writeGenesisBlockToBlocksFile(path string) error {
+	hash, err := genesisBlock.Hash()
+	if err != nil {
+		return err
+	}
+	genesisJson, err := json.Marshal(BlockFS{Key: hash, Value: genesisBlock})
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(path, append(genesisJson, '\n'), os.ModePerm)
 }

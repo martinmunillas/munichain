@@ -41,6 +41,8 @@ var balancesListCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		defer state.Close()
+
 		fmt.Println("Accounts balances:")
 		fmt.Println("__________________")
 		fmt.Println("")

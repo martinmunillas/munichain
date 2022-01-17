@@ -33,14 +33,9 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 
 	scanner := bufio.NewScanner(file)
 
-	hash, err := genesisBlock.Hash()
-	if err != nil {
-		return nil, err
-	}
-
 	state := &State{
-		Balances:        genesisBlock.getBalances(),
-		LatestBlockHash: hash,
+		Balances:        Balances{},
+		LatestBlockHash: Hash{},
 		memPool:         []Transaction{},
 		dbFile:          file,
 	}
@@ -57,49 +52,50 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 			return nil, err
 		}
 
-		state.applyBlock(blockFs.Value)
+		var transactions []*Transaction
+		for _, txFs := range blockFs.Value.Transactions {
+			transactions = append(transactions, &txFs)
+		}
+		state.AddTransactions(transactions...)
 
 		state.LatestBlockHash = blockFs.Key
-
 	}
 
 	return state, nil
 }
 
-func (state *State) AddTransactions(txs ...*Transaction) {
+func (state *State) AddTransactions(txs ...*Transaction) error {
+	prevState := *state
 	for _, tx := range txs {
-		state.memPool = append(state.memPool, *tx)
-		state.applyTransaction(tx)
+		err := state.addTransaction(tx)
+		if err != nil {
+			state.restore(prevState)
+			return err
+		}
 	}
+	return nil
 }
 
-func (state State) applyBlock(block Block) {
-	for _, tx := range block.Transactions {
-		state.applyTransaction(&tx)
-	}
+func (state *State) restore(old State) {
+	state = &old
 }
 
-func (state *State) applyTransaction(tx *Transaction) error {
-
-	if state.isValidTransaction(tx) {
+func (state *State) addTransaction(tx *Transaction) error {
+	if genesisBlock.isPrintingTx(*tx) {
+		state.Balances[tx.To] = tx.Amount
+		return nil
+	}
+	if !tx.isValid() {
 		return fmt.Errorf("invalid transaction: %v", tx)
+	}
+	if state.Balances[tx.From] < tx.Amount {
+		return fmt.Errorf("insufficient funds: %v", tx)
 	}
 
 	state.Balances[tx.From] -= tx.Amount
 	state.Balances[tx.To] += tx.Amount
+	state.memPool = append(state.memPool, *tx)
 	return nil
-}
-
-func (state *State) isValidTransaction(tx *Transaction) bool {
-	if tx.Amount <= 0 {
-		return false
-	}
-
-	if state.Balances[tx.From] < tx.Amount {
-		return false
-	}
-
-	return true
 }
 
 func (state *State) Persist() (Hash, error) {
@@ -137,4 +133,8 @@ func (state *State) Persist() (Hash, error) {
 	state.memPool = []Transaction{}
 	return blockHash, nil
 
+}
+
+func (state *State) Close() {
+	state.dbFile.Close()
 }
