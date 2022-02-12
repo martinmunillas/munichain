@@ -9,7 +9,6 @@ import (
 )
 
 const DefaultHttpPort = 8080
-const statusEndpoint = "/node/status"
 
 type Node struct {
 	DataDir string
@@ -44,15 +43,19 @@ func (n *Node) Run() error {
 
 	go n.sync(ctx)
 
-	http.HandleFunc("/balances/list", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(listBalancesEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		listBalancesHandler(w, state)
 	})
-	http.HandleFunc("/transactions/add", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(addTransactionsEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		addTransactionHandler(w, r, state)
 	})
 
 	http.HandleFunc(statusEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		nodeStatusHandler(w, r, n)
+	})
+
+	http.HandleFunc(syncEndpoint, func(w http.ResponseWriter, r *http.Request) {
+		syncHandler(w, r, n.DataDir)
 	})
 
 	http.ListenAndServe(fmt.Sprintf(":%d", n.Port), nil)

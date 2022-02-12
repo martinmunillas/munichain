@@ -6,16 +6,6 @@ import (
 	"github.com/martinmunillas/munichain/munichain"
 )
 
-type BalancesRes struct {
-	Hash   munichain.Hash     `json:"block_hash"`
-	Amount munichain.Balances `json:"amount"`
-}
-
-type AddTransactionReq struct {
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Amount uint   `json:"amount"`
-}
 type StatusRes struct {
 	Hash       munichain.Hash      `json:"block_hash"`
 	Number     uint64              `json:"block_number"`
@@ -28,11 +18,22 @@ func nodeStatusHandler(w http.ResponseWriter, r *http.Request, n *Node) {
 	w.Write([]byte("{\"status\":\"ok\"}"))
 }
 
+type BalancesRes struct {
+	Hash   munichain.Hash     `json:"block_hash"`
+	Amount munichain.Balances `json:"amount"`
+}
+
 func listBalancesHandler(w http.ResponseWriter, s *munichain.State) {
 	err := writeRes(w, BalancesRes{s.LatestBlockHash, s.Balances})
 	if err != nil {
 		writeErrRes(w, err)
 	}
+}
+
+type AddTransactionReq struct {
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Amount uint   `json:"amount"`
 }
 
 func addTransactionHandler(w http.ResponseWriter, r *http.Request, s *munichain.State) {
@@ -64,4 +65,24 @@ func addTransactionHandler(w http.ResponseWriter, r *http.Request, s *munichain.
 	}
 
 	writeRes(w, hash)
+}
+
+type SyncRes struct {
+	Blocks []munichain.Block `json:"blocks"`
+}
+
+func syncHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
+	reqHash := r.URL.Query().Get(syncFromBlockQueryKey)
+	hash := munichain.Hash{}
+	err := hash.UnmarshalText([]byte(reqHash))
+	if err != nil {
+		writeErrRes(w, err)
+		return
+	}
+	blocks, err := munichain.GetBlocksAfter(hash, dataDir)
+	if err != nil {
+		writeErrRes(w, err)
+		return
+	}
+	writeRes(w, SyncRes{Blocks: blocks})
 }
