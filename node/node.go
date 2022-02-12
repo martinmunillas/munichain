@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -8,24 +9,30 @@ import (
 )
 
 const DefaultHttpPort = 8080
+const statusEndpoint = "/node/status"
 
 type Node struct {
 	DataDir string
 	Port    uint64
 
-	s *munichain.State
+	state *munichain.State
 
-	KnownPeers []PeerNode
+	KnownPeers map[string]PeerNode
 }
 
-type PeerNode struct {
-	IP          string `json:"ip"`
-	Port        uint64 `json:"port"`
-	IsBootstrap bool   `json:"isBootstrap"`
-	IsActive    bool   `json:"isActive"`
+func New(dataDir string, port uint64, bootstrap PeerNode) *Node {
+	knownPeers := map[string]PeerNode{
+		bootstrap.TcpAddress(): bootstrap,
+	}
+	return &Node{
+		DataDir:    dataDir,
+		Port:       port,
+		KnownPeers: knownPeers,
+	}
 }
 
 func (n *Node) Run() error {
+	ctx := context.Background()
 	fmt.Printf("Listening on port %d\n", n.Port)
 	state, err := munichain.NewStateFromDisk(n.DataDir)
 	if err != nil {
@@ -33,7 +40,9 @@ func (n *Node) Run() error {
 	}
 	defer state.Close()
 
-	n.s = state
+	n.state = state
+
+	go n.sync(ctx)
 
 	http.HandleFunc("/balances/list", func(w http.ResponseWriter, r *http.Request) {
 		listBalancesHandler(w, state)
@@ -42,7 +51,7 @@ func (n *Node) Run() error {
 		addTransactionHandler(w, r, state)
 	})
 
-	http.HandleFunc("/node/status", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(statusEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		nodeStatusHandler(w, r, n)
 	})
 

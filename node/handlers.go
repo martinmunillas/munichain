@@ -16,6 +16,11 @@ type AddTransactionReq struct {
 	To     string `json:"to"`
 	Amount uint   `json:"amount"`
 }
+type StatusRes struct {
+	Hash       munichain.Hash      `json:"block_hash"`
+	Number     uint64              `json:"block_number"`
+	KnownPeers map[string]PeerNode `json:"peers_known"`
+}
 
 func nodeStatusHandler(w http.ResponseWriter, r *http.Request, n *Node) {
 	w.Header().Set("Content-Type", "application/json")

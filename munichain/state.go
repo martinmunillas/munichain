@@ -16,6 +16,7 @@ type State struct {
 	Balances        Balances
 	memPool         []Transaction
 	LatestBlockHash Hash
+	LatestBlock     Block
 
 	dbFile *os.File
 }
@@ -36,6 +37,7 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 	state := &State{
 		Balances:        Balances{},
 		LatestBlockHash: Hash{},
+		LatestBlock:     Block{},
 		memPool:         []Transaction{},
 		dbFile:          file,
 	}
@@ -59,6 +61,7 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 		state.AddTransactions(transactions...)
 
 		state.LatestBlockHash = blockFs.Key
+		state.LatestBlock = blockFs.Value
 	}
 
 	return state, nil
@@ -102,6 +105,7 @@ func (state *State) Persist() (Hash, error) {
 	block := &Block{
 		Header: BlockHeader{
 			Previous: state.LatestBlockHash,
+			Number:   state.LatestBlock.Header.Number + 1,
 			Time:     uint64(time.Now().Unix()),
 		},
 		Transactions: state.memPool,

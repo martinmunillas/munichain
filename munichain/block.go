@@ -24,6 +24,7 @@ type Block struct {
 
 type BlockHeader struct {
 	Previous Hash   `json:"previous"`
+	Number   uint64 `json:"number"`
 	Time     uint64 `json:"time"`
 }
 

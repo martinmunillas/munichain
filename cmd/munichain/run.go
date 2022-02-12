@@ -25,13 +25,7 @@ func runCmd() *cobra.Command {
 				IsActive:    true,
 			}
 
-			n := node.Node{
-				DataDir: dataDir,
-				Port:    port,
-				KnownPeers: []node.PeerNode{
-					bootstrap,
-				},
-			}
+			n := node.New(dataDir, port, bootstrap)
 			err := n.Run()
 			if err != nil {
 				fmt.Println(err)

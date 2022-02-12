@@ -3,6 +3,7 @@ package munichain
 var genesisBlock = Block{
 	Header: BlockHeader{
 		Time:     1642358385,
+		Number:   0,
 		Previous: Hash{},
 	},
 	Transactions: []Transaction{
