@@ -15,9 +15,24 @@ func runCmd() *cobra.Command {
 		Short: "Runs the node.",
 		Run: func(cmd *cobra.Command, args []string) {
 			dataDir, _ := cmd.Flags().GetString(flagDataDir)
+			port, _ := cmd.Flags().GetUint64(flagPort)
 			fmt.Println("Launching munichain node and its HTTP API...")
 
-			err := node.Run(dataDir)
+			bootstrap := node.PeerNode{
+				IP:          "0.0.0.0",
+				Port:        8080,
+				IsBootstrap: true,
+				IsActive:    true,
+			}
+
+			n := node.Node{
+				DataDir: dataDir,
+				Port:    port,
+				KnownPeers: []node.PeerNode{
+					bootstrap,
+				},
+			}
+			err := n.Run()
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(1)
@@ -26,6 +41,7 @@ func runCmd() *cobra.Command {
 	}
 
 	addDefaultRequiredFlags(runCmd)
+	runCmd.Flags().Uint64(flagPort, node.DefaultHttpPort, "exposed HTTP port for communication with peers")
 
 	return runCmd
 }
