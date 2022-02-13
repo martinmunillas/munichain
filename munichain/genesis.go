@@ -1,13 +1,21 @@
 package munichain
 
-var genesisBlock = Block{
+var GenesisBlock = Block{
 	Header: BlockHeader{
 		Time:     1642358385,
 		Number:   0,
 		Previous: Hash{},
+		Nonce:    77736833,
+		Miner:    "martinmunilla",
 	},
 	Transactions: []Transaction{
-		NewTransaction("munichain", "martinmunilla", 100_000_000),
+		{
+			From:   "munichain",
+			To:     "martinmunilla",
+			Amount: 100_000_000,
+			Data:   "genesis",
+			Time:   1642358385,
+		},
 	},
 }
 

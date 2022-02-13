@@ -146,7 +146,22 @@ func (s *State) applyBlock(b Block) error {
 			b.Header.Previous,
 		)
 	}
-	return s.applyTransactions(b.Transactions)
+	hash, err := b.Hash()
+	if err != nil {
+		return err
+	}
+	if !IsBlockHashValid(hash) {
+		return fmt.Errorf("invalid block hash %x", hash)
+	}
+
+	err = s.applyTransactions(b.Transactions)
+	if err != nil {
+		return err
+	}
+
+	s.Balances[b.Header.Miner] += BlockReward
+
+	return nil
 }
 
 func (s *State) applyTransactions(transactions []Transaction) error {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/martinmunillas/munichain/munichain"
 )
 
 func (n *Node) sync(ctx context.Context) error {
@@ -46,6 +48,11 @@ func (n *Node) doSync() {
 			continue
 		}
 		err = n.syncKnownPeers(status)
+		if err != nil {
+			fmt.Printf("Error: %s\n", err)
+			continue
+		}
+		err = n.syncPendingTransactions(status.PendingTransactions)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
 			continue
@@ -111,9 +118,13 @@ func (n *Node) syncBlocks(peer PeerNode, status StatusRes) error {
 	if err != nil {
 		return err
 	}
-	err = n.state.AddBlocks(blocks)
-	if err != nil {
-		return err
+	for _, block := range blocks {
+		_, err = n.state.AddBlock(block)
+		if err != nil {
+			return err
+		}
+
+		n.newSyncedBlocks <- block
 	}
 	return nil
 }
@@ -126,5 +137,16 @@ func (n *Node) syncKnownPeers(status StatusRes) error {
 			n.addPeer(statusPeer)
 		}
 	}
+	return nil
+}
+
+func (n *Node) syncPendingTransactions(txs []munichain.Transaction) error {
+	for _, tx := range txs {
+		err := n.addPendingTransaction(tx)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

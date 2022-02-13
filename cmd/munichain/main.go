@@ -33,6 +33,7 @@ func incorrectUsageErr() error {
 
 const flagDataDir = "dataDir"
 const flagPort = "port"
+const flagMiner = "miner"
 
 func addDefaultRequiredFlags(cmd *cobra.Command) {
 	cmd.Flags().String(

@@ -4,22 +4,23 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/martinmunillas/munichain/munichain"
 )
 
 type StatusRes struct {
-	Hash       munichain.Hash      `json:"block_hash"`
-	Number     uint64              `json:"block_number"`
-	KnownPeers map[string]PeerNode `json:"peers_known"`
+	Hash                munichain.Hash          `json:"block_hash"`
+	Number              uint64                  `json:"block_number"`
+	KnownPeers          map[string]PeerNode     `json:"peers_known"`
+	PendingTransactions []munichain.Transaction `json:"pending_transactions"`
 }
 
 func nodeStatusHandler(w http.ResponseWriter, r *http.Request, n *Node) {
 	err := writeRes(w, StatusRes{
-		Hash:       n.state.LatestBlockHash,
-		Number:     n.state.LatestBlock.Header.Number,
-		KnownPeers: n.KnownPeers,
+		Hash:                n.state.LatestBlockHash,
+		Number:              n.state.LatestBlock.Header.Number,
+		KnownPeers:          n.KnownPeers,
+		PendingTransactions: n.getPendingTransactionsArray(),
 	})
 	if err != nil {
 		writeErrRes(w, err)
@@ -45,7 +46,11 @@ type AddTransactionReq struct {
 	Amount uint   `json:"amount"`
 }
 
-func addTransactionHandler(w http.ResponseWriter, r *http.Request, s *munichain.State) {
+type AddTransactionRes struct {
+	Success bool `json:"success"`
+}
+
+func addTransactionHandler(w http.ResponseWriter, r *http.Request, n *Node) {
 	var req []AddTransactionReq
 	err := readReq(r, &req)
 	if err != nil {
@@ -62,21 +67,15 @@ func addTransactionHandler(w http.ResponseWriter, r *http.Request, s *munichain.
 		})
 	}
 
-	hash, err := s.AddBlock(munichain.Block{
-		Header: munichain.BlockHeader{
-			Previous: s.LatestBlockHash,
-			Number:   s.LatestBlock.Header.Number + 1,
-			Time:     uint64(time.Now().Unix()),
-		},
-		Transactions: txs,
-	},
-	)
+	for _, tx := range txs {
+		n.addPendingTransaction(tx)
+	}
 	if err != nil {
 		writeErrRes(w, err)
 		return
 	}
 
-	writeRes(w, hash)
+	writeRes(w, AddTransactionRes{true})
 }
 
 func syncHandler(w http.ResponseWriter, r *http.Request, dataDir string) {

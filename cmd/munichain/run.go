@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/martinmunillas/munichain/munichain"
 	"github.com/martinmunillas/munichain/node"
 	"github.com/spf13/cobra"
 )
@@ -16,6 +17,7 @@ func runCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			dataDir, _ := cmd.Flags().GetString(flagDataDir)
 			port, _ := cmd.Flags().GetUint64(flagPort)
+			miner, _ := cmd.Flags().GetString(flagMiner)
 			fmt.Println("Launching munichain node and its HTTP API...")
 
 			bootstrap := node.PeerNode{
@@ -25,7 +27,7 @@ func runCmd() *cobra.Command {
 				IsActive:    true,
 			}
 
-			n := node.New(dataDir, port, bootstrap, "127.0.0.1")
+			n := node.New(dataDir, port, bootstrap, "127.0.0.1", munichain.Address(miner))
 			err := n.Run()
 			if err != nil {
 				fmt.Println(err)
@@ -36,6 +38,7 @@ func runCmd() *cobra.Command {
 
 	addDefaultRequiredFlags(runCmd)
 	runCmd.Flags().Uint64(flagPort, node.DefaultHttpPort, "exposed HTTP port for communication with peers")
+	runCmd.Flags().String(flagMiner, "", "exposed HTTP port for communication with peers")
 
 	return runCmd
 }

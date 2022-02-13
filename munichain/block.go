@@ -9,7 +9,7 @@ import (
 type Hash [32]byte
 
 func (h Hash) MarshalText() ([]byte, error) {
-	return []byte(hex.EncodeToString(h[:])), nil
+	return []byte(h.ToString()), nil
 }
 
 func (h Hash) ToString() string {
@@ -21,15 +21,19 @@ func (h *Hash) UnmarshalText(data []byte) error {
 	return err
 }
 
+const BlockReward = 100
+
 type Block struct {
 	Header       BlockHeader   `json:"header"`
 	Transactions []Transaction `json:"transactions"`
 }
 
 type BlockHeader struct {
-	Previous Hash   `json:"previous"`
-	Number   uint64 `json:"number"`
-	Time     uint64 `json:"time"`
+	Previous Hash    `json:"previous"`
+	Number   uint64  `json:"number"`
+	Time     uint64  `json:"time"`
+	Nonce    uint32  `json:"nonce"`
+	Miner    Address `json:"miner"`
 }
 
 type BlockFS struct {
@@ -43,4 +47,10 @@ func (block *Block) Hash() (Hash, error) {
 		return Hash{}, err
 	}
 	return sha256.Sum256(data), nil
+}
+
+func IsBlockHashValid(hash Hash) bool {
+	return (hash[0] == 202) &&
+		(hash[1] == 202) &&
+		(hash[2] == 0)
 }

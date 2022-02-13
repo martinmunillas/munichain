@@ -37,11 +37,11 @@ func initDataDirIfNotExists(dataDir string) error {
 }
 
 func writeGenesisBlockToBlocksFile(path string) error {
-	hash, err := genesisBlock.Hash()
+	hash, err := GenesisBlock.Hash()
 	if err != nil {
 		return err
 	}
-	genesisJson, err := json.Marshal(BlockFS{Key: hash, Value: genesisBlock})
+	genesisJson, err := json.Marshal(BlockFS{Key: hash, Value: GenesisBlock})
 	if err != nil {
 		return err
 	}
