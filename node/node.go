@@ -13,13 +13,14 @@ const DefaultHttpPort = 8080
 type Node struct {
 	DataDir string
 	Port    uint64
+	IP      string
 
 	state *munichain.State
 
 	KnownPeers map[string]PeerNode
 }
 
-func New(dataDir string, port uint64, bootstrap PeerNode) *Node {
+func New(dataDir string, port uint64, bootstrap PeerNode, ip string) *Node {
 	knownPeers := map[string]PeerNode{
 		bootstrap.TcpAddress(): bootstrap,
 	}
@@ -27,6 +28,7 @@ func New(dataDir string, port uint64, bootstrap PeerNode) *Node {
 		DataDir:    dataDir,
 		Port:       port,
 		KnownPeers: knownPeers,
+		IP:         ip,
 	}
 }
 
@@ -56,6 +58,10 @@ func (n *Node) Run() error {
 
 	http.HandleFunc(syncEndpoint, func(w http.ResponseWriter, r *http.Request) {
 		syncHandler(w, r, n.DataDir)
+	})
+
+	http.HandleFunc(joinPeerEndpoint, func(w http.ResponseWriter, r *http.Request) {
+		joinPeerHandler(w, r, n)
 	})
 
 	http.ListenAndServe(fmt.Sprintf(":%d", n.Port), nil)

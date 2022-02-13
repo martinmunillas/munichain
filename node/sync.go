@@ -8,57 +8,123 @@ import (
 )
 
 func (n *Node) sync(ctx context.Context) error {
-	ticker := time.NewTicker(time.Second * 45)
+	ticker := time.NewTicker(time.Second * 10)
+
+	n.doSync()
 
 	for {
 		select {
 		case <-ticker.C:
-			fmt.Println("Syncing...")
-
-			n.fetchNewBlocksAndPeers()
+			n.doSync()
 		case <-ctx.Done():
 			ticker.Stop()
 		}
 	}
 }
 
-func (n *Node) fetchNewBlocksAndPeers() {
+func (n *Node) doSync() {
+	fmt.Println("Syncing...")
 	for _, peer := range n.KnownPeers {
-		status, err := queryPeerStatus(peer)
+		status, err := peer.queryStatus()
+		if err != nil {
+
+			fmt.Printf("Error: %s\n", err)
+			fmt.Printf("Peer '%s' is being removed from the network", peer.TcpAddress())
+
+			n.removePeer(peer)
+			continue
+		}
+
+		err = n.joinKnownPeers(peer)
 		if err != nil {
 			fmt.Printf("Error: %s\n", err)
 			continue
 		}
-
-		localBlockNumber := n.state.LatestBlock.Header.Number
-		if localBlockNumber < status.Number {
-			newBlocksCount := status.Number - localBlockNumber
-			fmt.Printf("Found %d new blocks from Peer %s\n", newBlocksCount, peer.IP)
+		err = n.syncBlocks(peer, status)
+		if err != nil {
+			fmt.Printf("Error: %s\n", err)
+			continue
 		}
-
-		for _, statusPeer := range status.KnownPeers {
-			newPeer, isKnownPeer := n.KnownPeers[statusPeer.TcpAddress()]
-			if !isKnownPeer {
-				fmt.Printf("New peer: %s\n", statusPeer.TcpAddress())
-
-				n.KnownPeers[statusPeer.TcpAddress()] = newPeer
-			}
+		err = n.syncKnownPeers(status)
+		if err != nil {
+			fmt.Printf("Error: %s\n", err)
+			continue
 		}
 	}
 }
 
-func queryPeerStatus(peer PeerNode) (StatusRes, error) {
-	url := fmt.Sprintf("http://%s/%s", peer.TcpAddress(), statusEndpoint)
+func (n *Node) joinKnownPeers(peer PeerNode) error {
+	if peer.connected {
+		return nil
+	}
+
+	url := fmt.Sprintf(
+		"http://%s%s?%s=%s&%s=%d",
+		peer.TcpAddress(),
+		joinPeerEndpoint,
+		joinPeerIPQueryKey,
+		n.IP,
+		joinPeerPortQueryKey,
+		n.Port,
+	)
+
 	res, err := http.Get(url)
 	if err != nil {
-		return StatusRes{}, err
+		return err
 	}
 
-	statusRes := StatusRes{}
-	err = readRes(res, &statusRes)
+	addPeerRes := AddPeerRes{}
+	err = readRes(res, &addPeerRes)
 	if err != nil {
-		return StatusRes{}, err
+		return err
 	}
 
-	return statusRes, nil
+	knownPeer := n.KnownPeers[peer.TcpAddress()]
+	knownPeer.connected = addPeerRes.Success
+
+	n.addPeer(knownPeer)
+
+	if !addPeerRes.Success {
+		return fmt.Errorf("unable to join KnownPeers of '%s'", peer.TcpAddress())
+	}
+
+	return nil
+
+}
+
+func (n *Node) syncBlocks(peer PeerNode, status StatusRes) error {
+	localBlockNumber := n.state.LatestBlock.Header.Number
+	if status.Number <= localBlockNumber {
+		return nil
+	}
+
+	newBlocksAmount := status.Number - localBlockNumber
+	var blockStr string
+	if newBlocksAmount == 1 {
+		blockStr = "block"
+	} else {
+		blockStr = "blocks"
+	}
+	fmt.Printf("Found %d new %s from Peer %s\n", newBlocksAmount, blockStr, peer.TcpAddress())
+
+	blocks, err := peer.fetchBlocksFrom(n.state.LatestBlockHash)
+	if err != nil {
+		return err
+	}
+	err = n.state.AddBlocks(blocks)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *Node) syncKnownPeers(status StatusRes) error {
+	for _, statusPeer := range status.KnownPeers {
+		if !n.isKnownPeer(statusPeer) {
+			fmt.Printf("found new peer: %s\n", statusPeer.TcpAddress())
+
+			n.addPeer(statusPeer)
+		}
+	}
+	return nil
 }

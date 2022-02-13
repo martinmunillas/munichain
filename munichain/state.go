@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"time"
+	"reflect"
 )
 
 type Address string
@@ -14,7 +14,6 @@ type Balances = map[Address]uint
 
 type State struct {
 	Balances        Balances
-	memPool         []Transaction
 	LatestBlockHash Hash
 	LatestBlock     Block
 
@@ -38,7 +37,6 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 		Balances:        Balances{},
 		LatestBlockHash: Hash{},
 		LatestBlock:     Block{},
-		memPool:         []Transaction{},
 		dbFile:          file,
 	}
 
@@ -54,11 +52,10 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 			return nil, err
 		}
 
-		var transactions []*Transaction
-		for _, txFs := range blockFs.Value.Transactions {
-			transactions = append(transactions, &txFs)
+		err := state.applyBlock(blockFs.Value)
+		if err != nil {
+			return nil, err
 		}
-		state.AddTransactions(transactions...)
 
 		state.LatestBlockHash = blockFs.Key
 		state.LatestBlock = blockFs.Value
@@ -67,58 +64,33 @@ func NewStateFromDisk(dataDir string) (*State, error) {
 	return state, nil
 }
 
-func (state *State) AddTransactions(txs ...*Transaction) error {
-	prevState := *state
-	for _, tx := range txs {
-		err := state.addTransaction(tx)
+func (s *State) AddBlocks(blocks []Block) error {
+	for _, b := range blocks {
+		hash, err := s.AddBlock(b)
 		if err != nil {
-			state.restore(prevState)
 			return err
 		}
+		fmt.Printf("Added block %s\n", hash.ToString())
 	}
 	return nil
 }
 
-func (state *State) restore(old State) {
-	state = &old
-}
+func (s *State) AddBlock(b Block) (Hash, error) {
+	c := s.copy()
 
-func (state *State) addTransaction(tx *Transaction) error {
-	if genesisBlock.isPrintingTx(*tx) {
-		state.Balances[tx.To] = tx.Amount
-		return nil
-	}
-	if !tx.isValid() {
-		return fmt.Errorf("invalid transaction: %v", tx)
-	}
-	if state.Balances[tx.From] < tx.Amount {
-		return fmt.Errorf("insufficient funds: %v", tx)
+	err := c.applyBlock(b)
+	if err != nil {
+		return Hash{}, err
 	}
 
-	state.Balances[tx.From] -= tx.Amount
-	state.Balances[tx.To] += tx.Amount
-	state.memPool = append(state.memPool, *tx)
-	return nil
-}
-
-func (state *State) Persist() (Hash, error) {
-	block := &Block{
-		Header: BlockHeader{
-			Previous: state.LatestBlockHash,
-			Number:   state.LatestBlock.Header.Number + 1,
-			Time:     uint64(time.Now().Unix()),
-		},
-		Transactions: state.memPool,
-	}
-
-	blockHash, err := block.Hash()
+	blockHash, err := b.Hash()
 	if err != nil {
 		return Hash{}, err
 	}
 
 	blockFs := BlockFS{
 		Key:   blockHash,
-		Value: *block,
+		Value: b,
 	}
 
 	blockFsJson, err := json.Marshal(blockFs)
@@ -126,19 +98,85 @@ func (state *State) Persist() (Hash, error) {
 		return Hash{}, err
 	}
 
-	fmt.Printf("Persisting new Block to disk:\n")
+	fmt.Printf("Persisting Block to disk:")
 	fmt.Printf("\t%s\n", blockFsJson)
 
-	_, err = state.dbFile.Write(append(blockFsJson, '\n'))
+	_, err = s.dbFile.Write(append(blockFsJson, '\n'))
 	if err != nil {
 		return Hash{}, err
 	}
-	state.LatestBlockHash = blockHash
-	state.memPool = []Transaction{}
+
+	s.Balances = c.Balances
+	s.LatestBlockHash = blockHash
+	s.LatestBlock = b
+
 	return blockHash, nil
+}
+
+func (s *State) copy() *State {
+	c := &State{
+		LatestBlockHash: s.LatestBlockHash,
+		LatestBlock:     s.LatestBlock,
+		Balances:        make(map[Address]uint),
+	}
+	for acc, balance := range s.Balances {
+		c.Balances[acc] = balance
+	}
+	return c
 
 }
 
+func (s *State) applyBlock(b Block) error {
+	isGenesis := s.LatestBlockHash == Hash{}
+	nextExpectedBlockNumber := s.LatestBlock.Header.Number + 1
+
+	if isGenesis && b.Header.Number != 0 && b.Header.Number != nextExpectedBlockNumber {
+		return fmt.Errorf(
+			"next expected block must be '%d' not '%d'",
+			nextExpectedBlockNumber,
+			b.Header.Number,
+		)
+	}
+	// validate the incoming block parent hash equals
+	// the current (latest known) hash
+	if s.LatestBlock.Header.Number > 0 && !reflect.DeepEqual(b.Header.Previous, s.LatestBlockHash) {
+		return fmt.Errorf(
+			"next block previous hash must be '%x' not '%x'",
+			s.LatestBlockHash,
+			b.Header.Previous,
+		)
+	}
+	return s.applyTransactions(b.Transactions)
+}
+
+func (s *State) applyTransactions(transactions []Transaction) error {
+	for _, tx := range transactions {
+		if err := s.applyTransaction(tx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *State) applyTransaction(tx Transaction) error {
+	if tx.isPrinting() {
+		s.Balances[tx.To] += tx.Amount
+		return nil
+	}
+
+	if !tx.isValid() {
+		return fmt.Errorf("invalid transaction")
+	}
+
+	if tx.Amount > s.Balances[tx.From] {
+		return fmt.Errorf("wrong transaction. '%s' balance is %d, but trying to send %d", tx.From, s.Balances[tx.From], tx.Amount)
+	}
+
+	s.Balances[tx.From] -= tx.Amount
+	s.Balances[tx.To] += tx.Amount
+
+	return nil
+}
 func (state *State) Close() {
 	state.dbFile.Close()
 }

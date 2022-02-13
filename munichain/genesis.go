@@ -11,6 +11,6 @@ var genesisBlock = Block{
 	},
 }
 
-func (genesis *Block) isPrintingTx(tx Transaction) bool {
+func (tx *Transaction) isPrinting() bool {
 	return tx.From == "munichain"
 }

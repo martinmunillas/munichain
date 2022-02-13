@@ -30,7 +30,6 @@ func GetBlocksAfter(blockHash Hash, dataDir string) ([]Block, error) { // open t
 			blocks = append(blocks, blockFs.Value)
 			continue
 		}
-		// found the block hash, collect new blocks
 		if blockHash == blockFs.Key {
 			shouldStartCollecting = true
 		}

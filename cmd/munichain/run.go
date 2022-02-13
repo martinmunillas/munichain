@@ -19,13 +19,13 @@ func runCmd() *cobra.Command {
 			fmt.Println("Launching munichain node and its HTTP API...")
 
 			bootstrap := node.PeerNode{
-				IP:          "0.0.0.0",
+				IP:          "127.0.0.1",
 				Port:        8080,
 				IsBootstrap: true,
 				IsActive:    true,
 			}
 
-			n := node.New(dataDir, port, bootstrap)
+			n := node.New(dataDir, port, bootstrap, "127.0.0.1")
 			err := n.Run()
 			if err != nil {
 				fmt.Println(err)

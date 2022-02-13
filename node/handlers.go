@@ -1,7 +1,10 @@
 package node
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/martinmunillas/munichain/munichain"
 )
@@ -13,9 +16,15 @@ type StatusRes struct {
 }
 
 func nodeStatusHandler(w http.ResponseWriter, r *http.Request, n *Node) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("{\"status\":\"ok\"}"))
+	err := writeRes(w, StatusRes{
+		Hash:       n.state.LatestBlockHash,
+		Number:     n.state.LatestBlock.Header.Number,
+		KnownPeers: n.KnownPeers,
+	})
+	if err != nil {
+		writeErrRes(w, err)
+	}
+
 }
 
 type BalancesRes struct {
@@ -44,31 +53,30 @@ func addTransactionHandler(w http.ResponseWriter, r *http.Request, s *munichain.
 		return
 	}
 
-	var txs []*munichain.Transaction
-	for _, req := range req {
-		txs = append(txs, &munichain.Transaction{
-			From:   munichain.Address(req.From),
-			To:     munichain.Address(req.To),
-			Amount: req.Amount,
+	var txs []munichain.Transaction
+	for _, tx := range req {
+		txs = append(txs, munichain.Transaction{
+			From:   munichain.Address(tx.From),
+			To:     munichain.Address(tx.To),
+			Amount: tx.Amount,
 		})
 	}
 
-	err = s.AddTransactions(txs...)
-	if err != nil {
-		writeErrRes(w, err)
-		return
-	}
-	hash, err := s.Persist()
+	hash, err := s.AddBlock(munichain.Block{
+		Header: munichain.BlockHeader{
+			Previous: s.LatestBlockHash,
+			Number:   s.LatestBlock.Header.Number + 1,
+			Time:     uint64(time.Now().Unix()),
+		},
+		Transactions: txs,
+	},
+	)
 	if err != nil {
 		writeErrRes(w, err)
 		return
 	}
 
 	writeRes(w, hash)
-}
-
-type SyncRes struct {
-	Blocks []munichain.Block `json:"blocks"`
 }
 
 func syncHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
@@ -84,5 +92,35 @@ func syncHandler(w http.ResponseWriter, r *http.Request, dataDir string) {
 		writeErrRes(w, err)
 		return
 	}
-	writeRes(w, SyncRes{Blocks: blocks})
+	writeRes(w, blocks)
+}
+
+type AddPeerRes struct {
+	Success bool `json:"success"`
+}
+
+func joinPeerHandler(w http.ResponseWriter, r *http.Request, n *Node) {
+	peerIP := r.URL.Query().Get(joinPeerIPQueryKey)
+	peerPortRaw := r.URL.Query().Get(joinPeerPortQueryKey)
+
+	peerPort, err := strconv.ParseUint(peerPortRaw, 10, 32)
+	if err != nil {
+		writeRes(w, AddPeerRes{false})
+		return
+	}
+
+	peer := PeerNode{
+		IP:          peerIP,
+		Port:        peerPort,
+		IsBootstrap: false,
+		IsActive:    true,
+	}
+
+	if !n.isKnownPeer(peer) {
+		n.addPeer(peer)
+
+		fmt.Printf("Peer '%s' was added into KnownPeers\n", peer.TcpAddress())
+	}
+
+	writeRes(w, AddPeerRes{true})
 }
